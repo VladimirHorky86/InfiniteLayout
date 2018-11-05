@@ -3,7 +3,8 @@
 //  InfiniteLayout
 //
 //  Created by Arnaud Dorgans on 20/12/2017.
-//
+//  Updated by Vladimír Horký on 30/07/2018.
+
 
 import UIKit
 
@@ -16,6 +17,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     private var contentSize: CGSize = .zero
     
     private var hasValidLayout: Bool = false
+	private var oldContentSize: CGSize? = nil
     
     @IBInspectable public var isEnabled: Bool = true {
         didSet {
@@ -52,15 +54,32 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
         return max(UIScreen.main.bounds.width, UIScreen.main.bounds.height) * 4
     }
     
+    static func minimumContentSize(forScrollDirection scrollDirection: UICollectionViewScrollDirection) -> CGFloat {
+        return scrollDirection == .horizontal ? UIScreen.main.bounds.width : UIScreen.main.bounds.height
+    }
+    
     override open func prepare() {
         let collectionViewContentSize = super.collectionViewContentSize
-        self.contentSize = CGSize(width: collectionViewContentSize.width, height: collectionViewContentSize.height)
+        self.contentSize = CGSize(width: collectionViewContentSize.width + minimumLineSpacing, height: collectionViewContentSize.height)
+        if oldContentSize == nil {
+            oldContentSize = contentSize
+        }else {
+            guard let collectionView = self.collectionView, collectionView.bounds != .zero else {
+                return
+            }
+            if let oldContentSize = oldContentSize, oldContentSize != contentSize {
+                let offsetX = collectionView.contentOffset.x/oldContentSize.width * contentSize.width - collectionView.contentInset.left
+                let offset = CGPoint(x: offsetX, y: collectionView.contentOffset.y)
+                updateContentOffset(offset)
+            }
+            oldContentSize = contentSize
+        }
         self.hasValidLayout = {
             guard let collectionView = self.collectionView, collectionView.bounds != .zero, self.isEnabled else {
                 return false
             }
             return (scrollDirection == .horizontal ? self.contentSize.width : self.contentSize.height) >=
-                InfiniteLayout.minimumContentSize
+                InfiniteLayout.minimumContentSize(forScrollDirection: scrollDirection)
         }()
         super.prepare()
     }

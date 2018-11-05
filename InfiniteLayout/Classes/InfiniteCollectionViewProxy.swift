@@ -56,9 +56,18 @@ class InfiniteCollectionViewDelegateProxy: InfiniteCollectionViewProxy<UICollect
     override func proxies(for aSelector: Selector) -> [NSObjectProtocol] {
         return super.proxies(for: aSelector)
             .first { proxy in
-                guard !(aSelector == #selector(UIScrollViewDelegate.scrollViewDidScroll(_:)) ||
-                    aSelector == #selector(UIScrollViewDelegate.scrollViewWillEndDragging(_:withVelocity:targetContentOffset:))) else {
-                        return proxy is InfiniteCollectionView
+                if #available(iOS 9.0, *) {
+                    guard !(aSelector == #selector(UIScrollViewDelegate.scrollViewDidScroll(_:)) ||
+                        aSelector == #selector(UIScrollViewDelegate.scrollViewWillEndDragging(_:withVelocity:targetContentOffset:)) ||
+                        aSelector == #selector(UICollectionViewDelegate.collectionView(_:didUpdateFocusIn:with:))) else {
+                            return proxy is InfiniteCollectionView
+                    }
+                } else {
+                    // Fallback on earlier versions
+                    guard !(aSelector == #selector(UIScrollViewDelegate.scrollViewDidScroll(_:)) ||
+                        aSelector == #selector(UIScrollViewDelegate.scrollViewWillEndDragging(_:withVelocity:targetContentOffset:))) else {
+                            return proxy is InfiniteCollectionView
+                    }
                 }
                 return true
             }.flatMap { [$0] } ?? []
