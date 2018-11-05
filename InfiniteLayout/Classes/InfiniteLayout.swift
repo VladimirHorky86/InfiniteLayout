@@ -15,7 +15,20 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     
     private var contentSize: CGSize = .zero
     
-    private (set) var isEnabled: Bool = false
+    private var hasValidLayout: Bool = false
+    
+    @IBInspectable public var isEnabled: Bool = true {
+        didSet {
+            self.invalidateLayout()
+        }
+    }
+    
+    public var currentPage: CGPoint {
+        guard let collectionView = self.collectionView else {
+            return .zero
+        }
+        return self.page(for: collectionView.contentOffset)
+    }
         
     open override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool {
         return true
@@ -42,8 +55,8 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     override open func prepare() {
         let collectionViewContentSize = super.collectionViewContentSize
         self.contentSize = CGSize(width: collectionViewContentSize.width, height: collectionViewContentSize.height)
-        self.isEnabled = {
-            guard let collectionView = self.collectionView, collectionView.bounds != .zero else {
+        self.hasValidLayout = {
+            guard let collectionView = self.collectionView, collectionView.bounds != .zero, self.isEnabled else {
                 return false
             }
             return (scrollDirection == .horizontal ? self.contentSize.width : self.contentSize.height) >=
@@ -53,15 +66,22 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     }
     
     override open var collectionViewContentSize: CGSize {
-        guard isEnabled else {
-            return super.collectionViewContentSize
+        guard hasValidLayout else {
+            return self.contentSize
         }
         return CGSize(width: scrollDirection == .horizontal ? self.contentSize.width * multiplier : self.contentSize.width,
                       height: scrollDirection == .vertical ? self.contentSize.height * multiplier : self.contentSize.height)
     }
     
+    open override func layoutAttributesForItem(at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
+        guard let attributes = super.layoutAttributesForItem(at: indexPath) else {
+            return nil
+        }
+        return self.layoutAttributes(from: attributes, page: currentPage)
+    }
+    
     override open func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
-        guard isEnabled else {
+        guard hasValidLayout else {
             return super.layoutAttributesForElements(in: rect)
         }
         let page = self.page(for: rect.origin)
@@ -143,7 +163,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     }
     
     public func loopCollectionViewIfNeeded() {
-        guard let collectionView = self.collectionView, self.isEnabled else {
+        guard let collectionView = self.collectionView, self.hasValidLayout else {
             return
         }
         let page = self.pageIndex(from: self.page(for: collectionView.contentOffset))
@@ -233,7 +253,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     }
     
     public func centerCollectionView(withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
-        guard let collectionView = self.collectionView, self.isEnabled else {
+        guard let collectionView = self.collectionView, self.hasValidLayout else {
             return
         }
         let newTarget = CGPoint(x: self.scrollDirection == .horizontal ? collectionView.contentOffset.x + velocity.x * velocityMultiplier : targetContentOffset.pointee.x,
@@ -247,7 +267,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     }
     
     public func centerCollectionViewIfNeeded(indexPath: IndexPath? = nil) {
-        guard let collectionView = self.collectionView, self.isEnabled else {
+        guard let collectionView = self.collectionView, self.hasValidLayout else {
             return
         }
         guard let preferredAttributes = self.preferredVisibleLayoutAttributes(indexPath: indexPath),
