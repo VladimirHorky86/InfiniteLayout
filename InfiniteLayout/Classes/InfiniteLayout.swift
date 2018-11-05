@@ -19,7 +19,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     private var hasValidLayout: Bool = false
 	private var oldContentSize: CGSize? = nil
     
-    @IBInspectable public var isEnabled: Bool = true {
+    @IBInspectable public var isEnabled: Bool = false {
         didSet {
             self.invalidateLayout()
         }
@@ -86,7 +86,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     
     override open var collectionViewContentSize: CGSize {
         guard hasValidLayout else {
-            return self.contentSize
+            return super.collectionViewContentSize
         }
         return CGSize(width: scrollDirection == .horizontal ? self.contentSize.width * multiplier : self.contentSize.width,
                       height: scrollDirection == .vertical ? self.contentSize.height * multiplier : self.contentSize.height)
