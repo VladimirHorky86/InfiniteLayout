@@ -129,7 +129,7 @@ open class InfiniteCollectionView: UICollectionView {
                 }
             }
         }
-        return []//super.preferredFocusEnvironments
+        return super.preferredFocusEnvironments
     }
 }
 
