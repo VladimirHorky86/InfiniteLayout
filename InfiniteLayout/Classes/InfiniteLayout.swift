@@ -1,9 +1,30 @@
+//Copyright (c) 2017 Arnoymous <ineox@me.com>
+//
+//Permission is hereby granted, free of charge, to any person obtaining a copy
+//of this software and associated documentation files (the "Software"), to deal
+//in the Software without restriction, including without limitation the rights
+//to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//copies of the Software, and to permit persons to whom the Software is
+//furnished to do so, subject to the following conditions:
+//
+//The above copyright notice and this permission notice shall be included in
+//all copies or substantial portions of the Software.
+//
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+//THE SOFTWARE.
+
 //
 //  InfiniteCollectionView.swift
 //  InfiniteLayout
 //
 //  Created by Arnaud Dorgans on 20/12/2017.
-//
+//  Updated by Vladimír Horký on 30/07/2018.
+
 
 import UIKit
 
@@ -15,13 +36,9 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     
     private var contentSize: CGSize = .zero
     
-    private var hasValidLayout: Bool = false
+    private var oldContentSize: CGSize? = nil
     
-    @IBInspectable public var isEnabled: Bool = true {
-        didSet {
-            self.invalidateLayout()
-        }
-    }
+    private (set) var isEnabled: Bool = false
     
     public var currentPage: CGPoint {
         guard let collectionView = self.collectionView else {
@@ -29,7 +46,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
         }
         return self.page(for: collectionView.contentOffset)
     }
-        
+    
     open override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool {
         return true
     }
@@ -52,22 +69,39 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
         return max(UIScreen.main.bounds.width, UIScreen.main.bounds.height) * 4
     }
     
+    static func minimumContentSize(forScrollDirection scrollDirection: UICollectionViewScrollDirection) -> CGFloat {
+        return scrollDirection == .horizontal ? UIScreen.main.bounds.width : UIScreen.main.bounds.height
+    }
+    
     override open func prepare() {
         let collectionViewContentSize = super.collectionViewContentSize
-        self.contentSize = CGSize(width: collectionViewContentSize.width, height: collectionViewContentSize.height)
-        self.hasValidLayout = {
-            guard let collectionView = self.collectionView, collectionView.bounds != .zero, self.isEnabled else {
+        self.contentSize = CGSize(width: collectionViewContentSize.width + minimumLineSpacing, height: collectionViewContentSize.height)
+        if oldContentSize == nil {
+            oldContentSize = contentSize
+        }else {
+            guard let collectionView = self.collectionView, collectionView.bounds != .zero else {
+                return
+            }
+            if let oldContentSize = oldContentSize, oldContentSize != contentSize {
+                let offsetX = collectionView.contentOffset.x/oldContentSize.width * contentSize.width - collectionView.contentInset.left
+                let offset = CGPoint(x: offsetX, y: collectionView.contentOffset.y)
+                updateContentOffset(offset)
+            }
+            oldContentSize = contentSize
+        }
+        self.isEnabled = {
+            guard let collectionView = self.collectionView, collectionView.bounds != .zero else {
                 return false
             }
             return (scrollDirection == .horizontal ? self.contentSize.width : self.contentSize.height) >=
-                InfiniteLayout.minimumContentSize
+                InfiniteLayout.minimumContentSize(forScrollDirection: scrollDirection)
         }()
         super.prepare()
     }
     
     override open var collectionViewContentSize: CGSize {
-        guard hasValidLayout else {
-            return self.contentSize
+        guard isEnabled else {
+            return super.collectionViewContentSize
         }
         return CGSize(width: scrollDirection == .horizontal ? self.contentSize.width * multiplier : self.contentSize.width,
                       height: scrollDirection == .vertical ? self.contentSize.height * multiplier : self.contentSize.height)
@@ -81,7 +115,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     }
     
     override open func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
-        guard hasValidLayout else {
+        guard isEnabled else {
             return super.layoutAttributesForElements(in: rect)
         }
         let page = self.page(for: rect.origin)
@@ -105,7 +139,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     private func page(for point: CGPoint) -> CGPoint {
         let xPage: CGFloat = floor(point.x / contentSize.width)
         let yPage: CGFloat = floor(point.y / contentSize.height)
-
+        
         return CGPoint(x: self.scrollDirection == .horizontal ? xPage : 0,
                        y: self.scrollDirection == .vertical ? yPage : 0)
     }
@@ -155,7 +189,8 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
         guard let collectionView = self.collectionView else {
             return
         }
-        collectionView.contentOffset = offset
+        //collectionView.contentOffset = offset
+        collectionView.setContentOffset(offset, animated: false)
         collectionView.layoutIfNeeded()
     }
     private func preferredContentOffset(forContentOffset contentOffset: CGPoint) -> CGPoint {
@@ -163,7 +198,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     }
     
     public func loopCollectionViewIfNeeded() {
-        guard let collectionView = self.collectionView, self.hasValidLayout else {
+        guard let collectionView = self.collectionView, self.isEnabled else {
             return
         }
         let page = self.pageIndex(from: self.page(for: collectionView.contentOffset))
@@ -246,14 +281,14 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     func centeredContentOffset(forRect rect: CGRect) -> CGPoint? {
         guard let collectionView = self.collectionView,
             let collectionRect = self.collectionViewRect() else {
-            return nil
+                return nil
         }
         return CGPoint(x: self.scrollDirection == .horizontal ? abs(rect.midX - collectionRect.origin.x - collectionRect.width/2) : collectionView.contentOffset.x,
                        y: self.scrollDirection == .vertical ? abs(rect.midY - collectionRect.origin.y - collectionRect.height/2) : collectionView.contentOffset.y)
     }
     
     public func centerCollectionView(withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
-        guard let collectionView = self.collectionView, self.hasValidLayout else {
+        guard let collectionView = self.collectionView, self.isEnabled else {
             return
         }
         let newTarget = CGPoint(x: self.scrollDirection == .horizontal ? collectionView.contentOffset.x + velocity.x * velocityMultiplier : targetContentOffset.pointee.x,
@@ -267,7 +302,7 @@ open class InfiniteLayout: UICollectionViewFlowLayout {
     }
     
     public func centerCollectionViewIfNeeded(indexPath: IndexPath? = nil) {
-        guard let collectionView = self.collectionView, self.hasValidLayout else {
+        guard let collectionView = self.collectionView, self.isEnabled else {
             return
         }
         guard let preferredAttributes = self.preferredVisibleLayoutAttributes(indexPath: indexPath),

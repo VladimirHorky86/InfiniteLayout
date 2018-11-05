@@ -4,6 +4,7 @@
 //
 //  Created by Arnaud Dorgans on 20/12/2017.
 //
+//  Updated by Vladimír Horký on 30/07/2018.
 
 import UIKit
 
@@ -21,6 +22,7 @@ open class InfiniteCollectionView: UICollectionView {
     
     open private(set) var centeredIndexPath: IndexPath?
     open var preferredCenteredIndexPath: IndexPath? = IndexPath(item: 0, section: 0)
+    private var lastFocusedIndexPath: IndexPath? = nil
     
     var forwardDelegate: Bool { return true }
     var _contentSize: CGSize?
@@ -114,6 +116,21 @@ open class InfiniteCollectionView: UICollectionView {
         super.layoutSubviews()
         self.updateLayoutIfNeeded()
     }
+    
+    @available(iOS 9.0, *)
+    open override var preferredFocusEnvironments: [UIFocusEnvironment] {
+        if let lastFocusedIndexPath = lastFocusedIndexPath, let lastFocusedCell = cellForItem(at: lastFocusedIndexPath) {
+            return [lastFocusedCell]
+        }else {
+            let sortedVisibleIndexPaths = indexPathsForVisibleItems.sorted(by: {$0 < $1})
+            if let visibleIndexPath = sortedVisibleIndexPaths.first {
+                if let cell = cellForItem(at: visibleIndexPath) {
+                    return [cell]
+                }
+            }
+        }
+        return []//super.preferredFocusEnvironments
+    }
 }
 
 // MARK: DataSource
@@ -134,7 +151,13 @@ extension InfiniteCollectionView: UICollectionViewDataSource {
     }
     
     private var multiplier: Int {
-        return InfiniteDataSources.multiplier(estimatedItemSize: self.infiniteLayout.itemSize, enabled: self.infiniteLayout.isEnabled)
+        var count = 0
+        for section in 0..<delegateNumberOfSections {
+            count += delegateNumberOfItems(in: section)
+        }
+        
+        return InfiniteDataSources.multiplier(infiniteLayout: infiniteLayout, numberOfSections: delegateNumberOfSections, numberOfItems: count, scrollDirection: infiniteLayout.scrollDirection)
+        
     }
     
     public func section(from infiniteSection: Int) -> Int {
@@ -202,5 +225,15 @@ extension InfiniteCollectionView: UICollectionViewDelegate {
         if isItemPagingEnabled {
             self.infiniteLayout.centerCollectionView(withVelocity: velocity, targetContentOffset: targetContentOffset)
         }
+        
+        delegateProxy.delegate?.scrollViewWillEndDragging?(scrollView, withVelocity: velocity, targetContentOffset: targetContentOffset)
+    }
+    
+    @available(iOS 9.0, *)
+    public func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+        if context.nextFocusedIndexPath != nil {
+            lastFocusedIndexPath = context.nextFocusedIndexPath
+        }
+        delegateProxy.delegate?.collectionView?(collectionView, didUpdateFocusIn: context, with: coordinator)
     }
 }
